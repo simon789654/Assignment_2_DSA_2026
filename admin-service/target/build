@@ -1,0 +1,61 @@
+{
+  "last_build_time": 1791231927963,
+  "last_update_time": 1791231927963,
+  "last_bal_toml_update_time": 1791225327073,
+  "distribution_version": "2201.13.6",
+  "last_modified_time": {
+    "admin_service": 1791225327236
+  },
+  "last_build_options": {
+    "testReport": false,
+    "codeCoverage": false,
+    "skipTests": true,
+    "compilationOptions": {
+      "experimental": false,
+      "observabilityIncluded": true,
+      "cloud": "",
+      "dumpGraph": false,
+      "dumpRawGraphs": false
+    }
+  },
+  "src_meta_info": [
+    {
+      "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\admin-service\\Ballerina.toml",
+      "hash": "e5fea3febe8d88183e02d7892849894cd9be4735c50b032319ffcef74c07bdb6",
+      "size": 141,
+      "lastModifiedTime": 1791225327073
+    },
+    {
+      "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\admin-service\\main.bal",
+      "hash": "dbc129abc4d6a218bc7b39bd60e9638926d7944492e411b43e96cdde6583d405",
+      "size": 10418,
+      "lastModifiedTime": 1791225327236
+    }
+  ],
+  "target_exec_meta_info": {
+    "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\admin-service\\target\\backup\\bin\\admin_service.jar",
+    "hash": "0581675f3e0a3c42f81b719a370c1526226a3bfa853cd8e0d8f3f231209bef71",
+    "size": 75485325,
+    "lastModifiedTime": 1791231935150
+  },
+  "settings_meta_info": {
+    "file": "C:\\Users\\Franklin\\.ballerina\\Settings.toml",
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0,
+    "lastModifiedTime": 1789228999600
+  },
+  "ballerina_toml_meta_info": {
+    "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\admin-service\\Ballerina.toml",
+    "hash": "e5fea3febe8d88183e02d7892849894cd9be4735c50b032319ffcef74c07bdb6",
+    "size": 141,
+    "lastModifiedTime": 1791225327073
+  },
+  "imports": [
+    "ballerina/http",
+    "ballerina/log",
+    "ballerina/time",
+    "ballerinax/kafka",
+    "ballerinax/mongodb",
+    "ballerinax/prometheus"
+  ]
+}

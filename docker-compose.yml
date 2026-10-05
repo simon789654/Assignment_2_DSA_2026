@@ -1,0 +1,162 @@
+# Distributed Food Delivery Platform - DSA612S Assignment 2
+# Start everything:   docker compose up --build
+# Web UI:             http://localhost:8080
+# Kafka UI:           http://localhost:8090
+# Prometheus:         http://localhost:9090
+# Grafana:            http://localhost:3000  (dashboard "Food Delivery Platform", no login)
+
+x-ballerina-service: &bal-service
+  restart: on-failure
+  networks: [backend]
+  depends_on:
+    kafka-init:
+      condition: service_completed_successfully
+    mongodb:
+      condition: service_healthy
+  environment:
+    # Override Ballerina `configurable` variables inside the container
+    BAL_CONFIG_VAR_KAFKAURL: kafka:9092
+    BAL_CONFIG_VAR_MONGOHOST: mongodb
+    BAL_CONFIG_VAR_RESTAURANTURL: http://restaurant-service:8082
+    BAL_CONFIG_VAR_DELIVERYURL: http://delivery-service:8085
+
+services:
+  # ---------------------------------------------------------------- infrastructure
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    networks: [backend]
+    ports:
+      - "29092:29092"          # for running services from your laptop (bal run)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller   # KRaft mode, no Zookeeper
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"  # topics are created explicitly below
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # One-shot container that creates all topics with 3 partitions each
+  kafka-init:
+    image: apache/kafka:3.8.0
+    networks: [backend]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        for t in orders.created orders.status-changed \
+                 payments.completed payments.failed payments.refunded \
+                 kitchen.preparing kitchen.ready \
+                 delivery.assigned delivery.picked-up delivery.completed \
+                 driver.location drivers.availability \
+                 events.dlq; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+            --create --if-not-exists --topic $$t --partitions 3 --replication-factor 1
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    networks: [backend]
+    ports: ["8090:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: food-delivery
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    networks: [backend]
+    ports: ["27017:27017"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------- microservices
+  # Each service gets its own database inside MongoDB (database-per-service).
+  customer-service:
+    <<: *bal-service
+    build: ./customer-service
+    ports: ["8081:8081"]
+
+  restaurant-service:
+    <<: *bal-service
+    build: ./restaurant-service
+    ports: ["8082:8082"]
+
+  order-service:
+    <<: *bal-service
+    build: ./order-service
+    ports: ["8083:8083"]
+
+  payment-service:
+    <<: *bal-service
+    build: ./payment-service
+    ports: ["8084:8084"]
+
+  delivery-service:
+    <<: *bal-service
+    build: ./delivery-service
+    ports: ["8085:8085"]
+
+  notification-service:
+    <<: *bal-service
+    build: ./notification-service
+    ports: ["8086:8086"]
+
+  admin-service:
+    <<: *bal-service
+    build: ./admin-service
+    ports: ["8087:8087"]
+
+  # ---------------------------------------------------------------- bonus: UI + observability
+  ui:
+    build: ./ui
+    networks: [backend]
+    ports: ["8080:80"]
+    restart: on-failure
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    networks: [backend]
+    ports: ["9090:9090"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    networks: [backend]
+    ports: ["3000:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on: [prometheus]
+
+networks:
+  backend:
+
+volumes:
+  mongo-data:

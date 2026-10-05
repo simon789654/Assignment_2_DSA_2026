@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapana Express – Food Delivery</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root { --bg:#f6f4ef; --card:#fff; --ink:#1d1b16; --muted:#6b665c; --line:#e4e0d6;
+          --brand:#c2410c; --brand-ink:#fff; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:1.5rem; padding:.8rem 1.5rem; background:var(--ink); color:#fff; flex-wrap:wrap; }
+  header h1 { font-size:1.15rem; margin:0; }
+  header h1 span { color:#fb923c; }
+  nav { display:flex; gap:.4rem; flex-wrap:wrap; }
+  nav button { background:transparent; color:#d6d3cc; border:1px solid #3b3830; padding:.4rem .9rem; border-radius:999px; cursor:pointer; }
+  nav button.active { background:#fb923c; color:var(--ink); border-color:#fb923c; font-weight:600; }
+  main { padding:1.2rem 1.5rem; max-width:1400px; margin:0 auto; }
+  section.tab { display:none; } section.tab.active { display:grid; gap:1rem; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  @media (max-width: 900px) { section.tab.active { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1rem; min-width:0; }
+  .card h2 { font-size:1rem; margin:0 0 .7rem; }
+  .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.6rem; }
+  label { font-size:.85rem; color:var(--muted); }
+  input, select { padding:.4rem .5rem; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; }
+  button.btn { background:var(--brand); color:var(--brand-ink); border:0; border-radius:8px; padding:.45rem .8rem; cursor:pointer; font:inherit; }
+  button.btn.ghost { background:transparent; color:var(--brand); border:1px solid var(--brand); }
+  button.btn:disabled { opacity:.45; cursor:not-allowed; }
+  .list { display:flex; flex-direction:column; gap:.45rem; max-height:360px; overflow:auto; }
+  .item { display:flex; justify-content:space-between; gap:.5rem; align-items:center; padding:.55rem .7rem; border:1px solid var(--line); border-radius:8px; }
+  .item.selected { border-color:var(--brand); background:#fff7ed; }
+  .muted { color:var(--muted); font-size:.85rem; }
+  .pill { font-size:.72rem; font-weight:600; padding:.15rem .5rem; border-radius:999px; background:#eee; white-space:nowrap; }
+  .pill.CREATED{background:#e0e7ff} .pill.CONFIRMED{background:#dbeafe} .pill.PREPARING{background:#fef3c7}
+  .pill.READY{background:#fde68a} .pill.OUT_FOR_DELIVERY{background:#fed7aa} .pill.DELIVERED{background:#bbf7d0}
+  .pill.CANCELLED{background:#fecaca} .pill.AVAILABLE{background:#bbf7d0} .pill.BUSY{background:#fed7aa} .pill.OFFLINE{background:#e5e5e5}
+  .surge { padding:.6rem .7rem; border-radius:8px; background:#fff7ed; border:1px dashed var(--brand); font-size:.9rem; }
+  .surge.high { background:#fef2f2; border-color:var(--bad); }
+  .map { height:380px; border-radius:10px; border:1px solid var(--line); }
+  .wide { grid-column: 1 / -1; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  th, td { text-align:left; padding:.45rem .5rem; border-bottom:1px solid var(--line); }
+  .timeline { display:flex; gap:.25rem; flex-wrap:wrap; margin-top:.35rem; }
+  .timeline span { font-size:.68rem; padding:.1rem .35rem; border-radius:4px; background:#eee; color:#888; }
+  .timeline span.done { background:var(--ok); color:#fff; }
+  .progress { height:6px; background:#eee; border-radius:4px; overflow:hidden; margin-top:.4rem; }
+  .progress div { height:100%; background:var(--brand); transition: width .8s; }
+  #toast { position:fixed; bottom:1rem; right:1rem; max-width:360px; padding:.7rem 1rem; border-radius:8px; background:var(--ink); color:#fff; opacity:0; transition:opacity .3s; pointer-events:none; }
+  #toast.show { opacity:.95; }
+  .links a { color:var(--brand); margin-right:1rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kapana <span>Express</span></h1>
+  <nav>
+    <button data-tab="customer" class="active">Customer</button>
+    <button data-tab="restaurant">Restaurant</button>
+    <button data-tab="driver">Driver</button>
+    <button data-tab="admin">Admin</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ======================= CUSTOMER ======================= -->
+  <section class="tab active" id="customer">
+    <div class="card">
+      <h2>Order food</h2>
+      <div class="row">
+        <label>Customer ID <input id="c-id" value="c1" size="8"></label>
+        <label>Deliver to <select id="c-node"></select></label>
+      </div>
+      <div class="row"><input id="c-address" placeholder="Street address" style="flex:1"></div>
+      <h2>Restaurants</h2>
+      <div id="c-restaurants" class="list"></div>
+    </div>
+
+    <div class="card">
+      <h2 id="c-menu-title">Menu</h2>
+      <div id="c-menu" class="list"><p class="muted">Pick a restaurant.</p></div>
+      <h2 style="margin-top:1rem">Cart</h2>
+      <div id="c-cart" class="list"></div>
+      <div id="c-quote" class="surge" style="margin:.6rem 0; display:none"></div>
+      <button class="btn" id="c-place" disabled>Place order</button>
+    </div>
+
+    <div class="card">
+      <h2>My orders</h2>
+      <div id="c-orders" class="list"></div>
+    </div>
+
+    <div class="card">
+      <h2>Live tracking <span id="c-eta" class="muted"></span></h2>
+      <div id="c-map" class="map"></div>
+      <div class="progress"><div id="c-progress" style="width:0"></div></div>
+    </div>
+
+    <div class="card wide">
+      <h2>Notifications</h2>
+      <div id="c-notifications" class="list"></div>
+    </div>
+  </section>
+
+  <!-- ======================= RESTAURANT ======================= -->
+  <section class="tab" id="restaurant">
+    <div class="card wide">
+      <h2>Kitchen</h2>
+      <div class="row"><label>Restaurant <select id="r-select"></select></label></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Order</th><th>Items</th><th>Total</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="r-orders"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ======================= DRIVER ======================= -->
+  <section class="tab" id="driver">
+    <div class="card">
+      <h2>Driver</h2>
+      <div class="row">
+        <label>Driver <select id="d-select"></select></label>
+        <span id="d-status" class="pill"></span>
+      </div>
+      <div class="row">
+        <button class="btn" data-avail="AVAILABLE">Go online</button>
+        <button class="btn ghost" data-avail="OFFLINE">Go offline</button>
+      </div>
+      <h2>My deliveries</h2>
+      <div id="d-deliveries" class="list"></div>
+    </div>
+    <div class="card">
+      <h2>Navigation <span id="d-eta" class="muted"></span></h2>
+      <div id="d-map" class="map"></div>
+    </div>
+  </section>
+
+  <!-- ======================= ADMIN ======================= -->
+  <section class="tab" id="admin">
+    <div class="card wide">
+      <h2>Live fleet</h2>
+      <div id="a-map" class="map"></div>
+    </div>
+    <div class="card">
+      <h2>Restaurant statistics</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Restaurant</th><th>Orders</th><th>Revenue (NAD)</th><th>Avg prep (min)</th></tr></thead>
+        <tbody id="a-restaurants"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h2>Delivery performance</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Driver</th><th>Deliveries</th><th>Avg time (min)</th></tr></thead>
+        <tbody id="a-drivers"></tbody>
+      </table></div>
+    </div>
+    <div class="card wide links">
+      <h2>Monitoring</h2>
+      <a href="http://localhost:3000/d/food-delivery" target="_blank">Grafana dashboard</a>
+      <a href="http://localhost:9090/targets" target="_blank">Prometheus targets</a>
+      <a href="http://localhost:8090" target="_blank">Kafka UI (topics &amp; messages)</a>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+// ------------------------------------------------------------------ helpers
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = (n) => "N$ " + Number(n ?? 0).toFixed(2);
+const STATES = ["CREATED","CONFIRMED","PREPARING","READY","OUT_FOR_DELIVERY","DELIVERED"];
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove("show"), 3500);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch("/api" + path, { headers: { "Content-Type": "application/json" }, ...options });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text; try { msg = JSON.parse(text).message || text; } catch {}
+    throw new Error(`${res.status}: ${msg || res.statusText}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+// Polling calls stay quiet when a service is down; user actions show a toast.
+const quiet = (p) => p.catch(() => null);
+
+// ------------------------------------------------------------------ maps
+const WINDHOEK = [-22.570, 17.083];
+const maps = {};
+function makeMap(id) {
+  const m = L.map(id).setView(WINDHOEK, 13);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { maxZoom: 18, attribution: "&copy; OpenStreetMap contributors" }).addTo(m);
+  return { map: m, drivers: {}, routes: L.layerGroup().addTo(m), pins: L.layerGroup().addTo(m), fitted: null };
+}
+const carIcon = (color) => L.divIcon({ className: "", iconSize: [26, 26],
+  html: `<div style="width:26px;height:26px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px #0006;display:grid;place-items:center;font-size:13px">🛵</div>` });
+
+function drawDrivers(m, locations, highlightId) {
+  const seen = new Set();
+  for (const loc of locations || []) {
+    seen.add(loc.driverId);
+    const color = loc.driverId === highlightId ? "#c2410c" : (loc.phase === "IDLE" ? "#15803d" : "#b45309");
+    const label = `${esc(loc.driverId)} – ${esc(loc.phase)}`;
+    if (m.drivers[loc.driverId]) {
+      m.drivers[loc.driverId].setLatLng([loc.lat, loc.lng]).setIcon(carIcon(color)).setTooltipContent(label);
+    } else {
+      m.drivers[loc.driverId] = L.marker([loc.lat, loc.lng], { icon: carIcon(color) }).bindTooltip(label).addTo(m.map);
+    }
+  }
+  for (const id of Object.keys(m.drivers)) if (!seen.has(id)) { m.map.removeLayer(m.drivers[id]); delete m.drivers[id]; }
+}
+
+function drawDelivery(m, delivery) {
+  m.routes.clearLayers(); m.pins.clearLayers();
+  if (!delivery) return;
+  const legs = [[delivery.routeToRestaurant, "#2563eb"], [delivery.routeToCustomer, "#c2410c"]];
+  const all = [];
+  for (const [route, color] of legs) {
+    if (route?.path?.length) { L.polyline(route.path, { color, weight: 5, opacity: .8 }).addTo(m.routes); all.push(...route.path); }
+  }
+  const rp = delivery.routeToCustomer?.path;
+  if (rp?.length) {
+    L.marker(rp[0]).bindTooltip("Restaurant").addTo(m.pins);
+    L.marker(rp[rp.length - 1]).bindTooltip("Customer").addTo(m.pins);
+  }
+  if (all.length && m.fitted !== delivery.deliveryId) { m.map.fitBounds(all, { padding: [30, 30] }); m.fitted = delivery.deliveryId; }
+}
+
+// ------------------------------------------------------------------ tabs
+let activeTab = "customer";
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll("section.tab").forEach(s => s.classList.toggle("active", s.id === b.dataset.tab));
+  activeTab = b.dataset.tab;
+  const m = maps[activeTab]; if (m) setTimeout(() => m.map.invalidateSize(), 50);
+  tick();
+});
+
+// ------------------------------------------------------------------ CUSTOMER
+const cart = new Map(); // menuItemId -> {item, qty}
+let currentRestaurant = null, trackedOrderId = null, nodes = [];
+
+async function loadNodes() {
+  nodes = (await quiet(api("/delivery/routes/nodes"))) || [];
+  $("c-node").innerHTML = nodes.map(n => `<option value="${esc(n.id)}">${esc(n.name)}</option>`).join("")
+    || `<option value="">(delivery service offline)</option>`;
+}
+
+async function loadRestaurants() {
+  const list = (await quiet(api("/restaurant/restaurants"))) || [];
+  $("c-restaurants").innerHTML = list.map(r => `
+    <div class="item ${currentRestaurant?.restaurantId === r.restaurantId ? "selected" : ""}">
+      <div><b>${esc(r.name)}</b><div class="muted">${r.isOpen === false ? "Closed" : "Open now"}</div></div>
+      <button class="btn ghost" ${r.isOpen === false ? "disabled" : ""} data-rid="${esc(r.restaurantId)}">Menu</button>
+    </div>`).join("") || `<p class="muted">No restaurants yet (or restaurant service offline).</p>`;
+  $("c-restaurants").querySelectorAll("[data-rid]").forEach(b => b.onclick = () => openMenu(list.find(r => r.restaurantId === b.dataset.rid)));
+  $("r-select").innerHTML = list.map(r => `<option value="${esc(r.restaurantId)}">${esc(r.name)}</option>`).join("");
+}
+
+async function openMenu(r) {
+  currentRestaurant = r; cart.clear(); renderCart(); loadRestaurants();
+  $("c-menu-title").textContent = "Menu – " + r.name;
+  try {
+    const menu = await api(`/restaurant/restaurants/${encodeURIComponent(r.restaurantId)}/menu`);
+    $("c-menu").innerHTML = menu.map(m => `
+      <div class="item">
+        <div><b>${esc(m.name)}</b><div class="muted">${money(m.price)} · ${m.stock ?? "?"} left</div></div>
+        <button class="btn" ${m.available === false || m.stock === 0 ? "disabled" : ""} data-mid="${esc(m.menuItemId)}">Add</button>
+      </div>`).join("") || `<p class="muted">Empty menu.</p>`;
+    $("c-menu").querySelectorAll("[data-mid]").forEach(b => b.onclick = () => {
+      const item = menu.find(m => m.menuItemId === b.dataset.mid);
+      const line = cart.get(item.menuItemId) || { item, qty: 0 };
+      line.qty++; cart.set(item.menuItemId, line); renderCart();
+    });
+  } catch (e) { toast("Menu: " + e.message); }
+}
+
+async function renderCart() {
+  const lines = [...cart.values()];
+  $("c-cart").innerHTML = lines.map(l => `
+    <div class="item"><span>${l.qty} × ${esc(l.item.name)}</span>
+      <span>${money(l.qty * l.item.price)} <button class="btn ghost" data-rm="${esc(l.item.menuItemId)}">−</button></span></div>`).join("")
+    || `<p class="muted">Cart is empty.</p>`;
+  $("c-cart").querySelectorAll("[data-rm]").forEach(b => b.onclick = () => {
+    const l = cart.get(b.dataset.rm); l.qty--; if (l.qty <= 0) cart.delete(b.dataset.rm); renderCart();
+  });
+  $("c-place").disabled = lines.length === 0;
+  await refreshQuote();
+}
+
+async function refreshQuote() {
+  const subtotal = [...cart.values()].reduce((s, l) => s + l.qty * l.item.price, 0);
+  const box = $("c-quote");
+  if (!subtotal) { box.style.display = "none"; return; }
+  const q = await quiet(api(`/order/orders/quote?subtotal=${subtotal.toFixed(2)}`));
+  if (!q) { box.style.display = "none"; return; }
+  box.style.display = "block";
+  box.classList.toggle("high", q.surgeMultiplier > 1);
+  box.innerHTML = `Subtotal ${money(q.subtotal)} + delivery ${money(q.deliveryFee)}
+    ${q.surgeMultiplier > 1 ? `<b>(surge ×${q.surgeMultiplier})</b>` : ""} = <b>${money(q.total)}</b>
+    <div class="muted">${esc(q.reason)} · ${q.recentOrders} orders in last 15 min · ${q.availableDrivers < 0 ? "?" : q.availableDrivers} drivers free</div>`;
+}
+
+$("c-place").onclick = async () => {
+  if (!currentRestaurant) return;
+  const node = nodes.find(n => n.id === $("c-node").value);
+  const body = {
+    customerId: $("c-id").value.trim(),
+    restaurantId: currentRestaurant.restaurantId,
+    deliveryAddress: $("c-address").value.trim() || node?.name || "Windhoek",
+    deliveryNodeId: $("c-node").value || null,
+    items: [...cart.values()].map(l => ({ menuItemId: l.item.menuItemId, name: l.item.name, quantity: l.qty, unitPrice: l.item.price }))
+  };
+  try {
+    const o = await api("/order/orders", { method: "POST", body: JSON.stringify(body) });
+    toast(`Order placed – ${money(o.total)}`);
+    cart.clear(); renderCart(); trackedOrderId = o.orderId; loadCustomerOrders();
+  } catch (e) { toast("Order failed: " + e.message); }
+};
+
+async function loadCustomerOrders() {
+  const cid = encodeURIComponent($("c-id").value.trim());
+  const orders = (await quiet(api(`/order/orders?customerId=${cid}`))) || [];
+  orders.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  $("c-orders").innerHTML = orders.map(o => {
+    const idx = STATES.indexOf(o.status);
+    return `<div class="item ${o.orderId === trackedOrderId ? "selected" : ""}"><div style="flex:1">
+      <div class="row" style="margin:0;justify-content:space-between"><b>#${esc(o.orderId.slice(0, 8))}</b><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div>
+      <div class="muted">${o.items.map(i => `${i.quantity}× ${esc(i.name)}`).join(", ")} · ${money(o.total)}${o.surgeMultiplier > 1 ? ` (surge ×${o.surgeMultiplier})` : ""}</div>
+      <div class="timeline">${o.status === "CANCELLED" ? `<span class="done" style="background:var(--bad)">CANCELLED</span>` :
+        STATES.map((s, i) => `<span class="${i <= idx ? "done" : ""}">${s.replaceAll("_", " ")}</span>`).join("")}</div>
+      <div class="row" style="margin:.4rem 0 0">
+        <button class="btn ghost" data-track="${esc(o.orderId)}">Track</button>
+        ${["CREATED", "CONFIRMED"].includes(o.status) ? `<button class="btn ghost" data-cancel="${esc(o.orderId)}">Cancel</button>` : ""}
+      </div></div></div>`;
+  }).join("") || `<p class="muted">No orders yet.</p>`;
+  $("c-orders").querySelectorAll("[data-track]").forEach(b => b.onclick = () => { trackedOrderId = b.dataset.track; loadCustomerOrders(); trackOrder(); });
+  $("c-orders").querySelectorAll("[data-cancel]").forEach(b => b.onclick = async () => {
+    try { await api(`/order/orders/${b.dataset.cancel}/cancel`, { method: "POST", body: JSON.stringify({ reason: "Cancelled by customer" }) }); toast("Order cancelled"); loadCustomerOrders(); }
+    catch (e) { toast(e.message); }
+  });
+}
+
+async function trackOrder() {
+  const m = maps.customer;
+  if (!trackedOrderId) return;
+  const d = await quiet(api(`/delivery/deliveries/order/${encodeURIComponent(trackedOrderId)}`));
+  drawDelivery(m, d);
+  const locs = (await quiet(api("/delivery/drivers/locations"))) || [];
+  const mine = d ? locs.filter(l => l.driverId === d.driverId) : [];
+  drawDrivers(m, mine, d?.driverId);
+  const loc = mine[0];
+  $("c-eta").textContent = d ? `· driver ${d.driverId} · ETA ${Math.max(0, Math.round((d.etaMinutes ?? 0) * (1 - (loc?.progress ?? 0))))} min` : "· waiting for a driver";
+  $("c-progress").style.width = loc?.phase === "TO_CUSTOMER" ? `${Math.round(loc.progress * 100)}%` : (d?.status === "DELIVERED" ? "100%" : "0");
+}
+
+async function loadNotifications() {
+  const n = (await quiet(api(`/notification/notifications?recipientId=${encodeURIComponent($("c-id").value.trim())}`))) || [];
+  $("c-notifications").innerHTML = n.slice(-15).reverse().map(x =>
+    `<div class="item"><span>${esc(x.message)}</span><span class="muted">${esc(x.channel || "")} · ${esc((x.sentAt || "").slice(11, 19))}</span></div>`).join("")
+    || `<p class="muted">No notifications.</p>`;
+}
+
+// ------------------------------------------------------------------ RESTAURANT
+const KITCHEN_ACTION = { CONFIRMED: ["start", "Start cooking"], PREPARING: ["ready", "Mark ready"] };
+async function loadKitchen() {
+  const rid = $("r-select").value; if (!rid) return;
+  const orders = (await quiet(api(`/order/orders?restaurantId=${encodeURIComponent(rid)}`))) || [];
+  const active = orders.filter(o => !["DELIVERED", "CANCELLED"].includes(o.status));
+  $("r-orders").innerHTML = active.map(o => {
+    const act = KITCHEN_ACTION[o.status];
+    return `<tr><td>#${esc(o.orderId.slice(0, 8))}</td><td>${o.items.map(i => `${i.quantity}× ${esc(i.name)}`).join("<br>")}</td>
+      <td>${money(o.total)}</td><td><span class="pill ${esc(o.status)}">${esc(o.status)}</span></td>
+      <td>${act ? `<button class="btn" data-kitchen="${act[0]}" data-oid="${esc(o.orderId)}">${act[1]}</button>` : `<span class="muted">—</span>`}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="muted">No active orders.</td></tr>`;
+  $("r-orders").querySelectorAll("[data-kitchen]").forEach(b => b.onclick = async () => {
+    try { await api(`/restaurant/kitchen/orders/${b.dataset.oid}/${b.dataset.kitchen}`, { method: "PATCH" }); toast("Kitchen updated"); setTimeout(loadKitchen, 600); }
+    catch (e) { toast(e.message); }
+  });
+}
+$("r-select").onchange = loadKitchen;
+
+// ------------------------------------------------------------------ DRIVER
+async function loadDrivers() {
+  const drivers = (await quiet(api("/delivery/drivers"))) || [];
+  const sel = $("d-select"), prev = sel.value;
+  sel.innerHTML = drivers.map(d => `<option value="${esc(d.driverId)}">${esc(d.name || d.driverId)}</option>`).join("");
+  if (prev) sel.value = prev;
+  const me = drivers.find(d => d.driverId === sel.value);
+  $("d-status").textContent = me?.status || ""; $("d-status").className = "pill " + (me?.status || "");
+}
+document.querySelectorAll("[data-avail]").forEach(b => b.onclick = async () => {
+  try { await api(`/delivery/drivers/${encodeURIComponent($("d-select").value)}/availability`, { method: "PATCH", body: JSON.stringify({ status: b.dataset.avail }) }); loadDrivers(); }
+  catch (e) { toast(e.message); }
+});
+$("d-select").onchange = () => { maps.driver.fitted = null; tick(); };
+
+async function loadDriverDeliveries() {
+  const did = $("d-select").value; if (!did) return;
+  const list = (await quiet(api(`/delivery/deliveries?driverId=${encodeURIComponent(did)}`))) || [];
+  const current = list.find(d => d.status !== "DELIVERED");
+  $("d-deliveries").innerHTML = list.slice().reverse().map(d => `
+    <div class="item"><div><b>Order #${esc(d.orderId.slice(0, 8))}</b>
+      <div class="muted">${(d.routeToCustomer?.distanceKm ?? "?")} km to customer · ETA ${Math.round(d.etaMinutes ?? 0)} min</div></div>
+      <div><span class="pill">${esc(d.status)}</span>
+      ${d.status === "ASSIGNED" ? `<button class="btn" data-dact="pickup" data-did="${esc(d.deliveryId)}">Picked up</button>` : ""}
+      ${d.status === "PICKED_UP" ? `<button class="btn" data-dact="complete" data-did="${esc(d.deliveryId)}">Delivered</button>` : ""}
+      </div></div>`).join("") || `<p class="muted">No deliveries yet. Go online to receive orders.</p>`;
+  $("d-deliveries").querySelectorAll("[data-dact]").forEach(b => b.onclick = async () => {
+    try { await api(`/delivery/deliveries/${b.dataset.did}/${b.dataset.dact}`, { method: "PATCH" }); toast("Delivery updated"); loadDriverDeliveries(); }
+    catch (e) { toast(e.message); }
+  });
+  drawDelivery(maps.driver, current);
+  const locs = (await quiet(api("/delivery/drivers/locations"))) || [];
+  drawDrivers(maps.driver, locs.filter(l => l.driverId === did), did);
+  $("d-eta").textContent = current ? `· ${current.status}` : "";
+}
+
+// ------------------------------------------------------------------ ADMIN
+async function loadAdmin() {
+  drawDrivers(maps.admin, (await quiet(api("/delivery/drivers/locations"))) || []);
+  const rs = (await quiet(api("/admin/reports/restaurants"))) || [];
+  $("a-restaurants").innerHTML = rs.map(r => `<tr><td>${esc(r.name || r.restaurantId)}</td><td>${r.ordersCount ?? 0}</td>
+    <td>${Number(r.revenue ?? 0).toFixed(2)}</td><td>${Number(r.avgPrepMinutes ?? 0).toFixed(1)}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="muted">No data yet.</td></tr>`;
+  const ds = (await quiet(api("/admin/reports/drivers"))) || [];
+  $("a-drivers").innerHTML = ds.map(d => `<tr><td>${esc(d.name || d.driverId)}</td><td>${d.deliveries ?? 0}</td>
+    <td>${Number(d.avgDeliveryMinutes ?? 0).toFixed(1)}</td></tr>`).join("")
+    || `<tr><td colspan="3" class="muted">No data yet.</td></tr>`;
+}
+
+// ------------------------------------------------------------------ polling loop
+let busy = false;
+async function tick() {
+  if (busy) return; busy = true;
+  try {
+    if (activeTab === "customer") { await Promise.all([loadCustomerOrders(), trackOrder(), loadNotifications(), refreshQuote()]); }
+    if (activeTab === "restaurant") await loadKitchen();
+    if (activeTab === "driver") { await loadDrivers(); await loadDriverDeliveries(); }
+    if (activeTab === "admin") await loadAdmin();
+  } finally { busy = false; }
+}
+
+(async function init() {
+  maps.customer = makeMap("c-map"); maps.driver = makeMap("d-map"); maps.admin = makeMap("a-map");
+  renderCart();
+  await Promise.all([loadNodes(), loadRestaurants(), loadDrivers()]);
+  $("c-id").onchange = tick;
+  tick();
+  setInterval(tick, 2000);
+})();
+</script>
+</body>
+</html>

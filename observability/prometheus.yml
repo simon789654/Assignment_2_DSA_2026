@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  # Every Ballerina service exposes metrics on :9797 (see Config.toml + `import ballerinax/prometheus as _;`)
+  - job_name: food-delivery
+    static_configs:
+      - targets: ["customer-service:9797"]
+        labels: {service: customer}
+      - targets: ["restaurant-service:9797"]
+        labels: {service: restaurant}
+      - targets: ["order-service:9797"]
+        labels: {service: order}
+      - targets: ["payment-service:9797"]
+        labels: {service: payment}
+      - targets: ["delivery-service:9797"]
+        labels: {service: delivery}
+      - targets: ["notification-service:9797"]
+        labels: {service: notification}
+      - targets: ["admin-service:9797"]
+        labels: {service: admin}

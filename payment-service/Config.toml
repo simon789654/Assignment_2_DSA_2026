@@ -1,0 +1,8 @@
+# Observability (bonus): Prometheus metrics on port 9797
+[ballerina.observe]
+metricsEnabled = true
+metricsReporter = "prometheus"
+
+[ballerinax.prometheus]
+host = "0.0.0.0"
+port = 9797

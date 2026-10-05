@@ -1,0 +1,59 @@
+{
+  "last_build_time": 1791232776604,
+  "last_update_time": 1791232776604,
+  "last_bal_toml_update_time": 1791225329260,
+  "distribution_version": "2201.13.6",
+  "last_modified_time": {
+    "restaurant_service": 1791225329446
+  },
+  "last_build_options": {
+    "compilationOptions": {
+      "observabilityIncluded": true,
+      "dumpBir": false,
+      "cloud": "",
+      "dumpGraph": false,
+      "dumpRawGraphs": false
+    }
+  },
+  "src_meta_info": [
+    {
+      "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\restaurant-service\\Ballerina.toml",
+      "hash": "96912c792f7e6bdf5e91775b11f5268dc8ccd263adce05aabda877d921201e2e",
+      "size": 146,
+      "lastModifiedTime": 1791225329260
+    },
+    {
+      "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\restaurant-service\\main.bal",
+      "hash": "894528369da09abfa2715f460101eb731249348d4935fe1d9553e4b074f843a6",
+      "size": 13304,
+      "lastModifiedTime": 1791225329446
+    }
+  ],
+  "target_exec_meta_info": {
+    "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\restaurant-service\\target\\backup\\bin\\restaurant_service.jar",
+    "hash": "62457742eb0e0796207cd710f5a1e0c7ee485d5bbd095a4820eb4a7e524f37e2",
+    "size": 75595269,
+    "lastModifiedTime": 1791232781140
+  },
+  "settings_meta_info": {
+    "file": "C:\\Users\\Franklin\\.ballerina\\Settings.toml",
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0,
+    "lastModifiedTime": 1789228999600
+  },
+  "ballerina_toml_meta_info": {
+    "file": "C:\\Users\\Franklin\\Desktop\\Assignment_2_DSA_2026\\restaurant-service\\Ballerina.toml",
+    "hash": "96912c792f7e6bdf5e91775b11f5268dc8ccd263adce05aabda877d921201e2e",
+    "size": 146,
+    "lastModifiedTime": 1791225329260
+  },
+  "imports": [
+    "ballerina/http",
+    "ballerina/log",
+    "ballerina/time",
+    "ballerina/uuid",
+    "ballerinax/kafka",
+    "ballerinax/mongodb",
+    "ballerinax/prometheus"
+  ]
+}
