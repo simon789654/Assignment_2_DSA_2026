@@ -3,33 +3,6 @@
 Seven Ballerina microservices coordinated through Kafka, each with its own MongoDB database, orchestrated with Docker Compose, plus a web UI, live driver simulation, A* route optimisation, surge pricing and Prometheus/Grafana monitoring.
 
 
-## Architecture
-
-```mermaid
-flowchart LR
-    C[Customer / Driver / Restaurant clients] -->|REST| CS[Customer Service :8081]
-    C -->|REST| RS[Restaurant Service :8082]
-    C -->|REST| OS[Order Service :8083]
-    C -->|REST| DS[Delivery Service :8085]
-    C -->|REST| AS[Admin Service :8087]
-
-    OS <--> K[(Kafka)]
-    PS[Payment Service :8084] <--> K
-    RS <--> K
-    DS <--> K
-    CS <-- K
-    NS[Notification Service :8086] <-- K
-    AS <-- K
-
-    CS --- DB1[(customer_db)]
-    RS --- DB2[(restaurant_db)]
-    OS --- DB3[(order_db)]
-    PS --- DB4[(payment_db)]
-    DS --- DB5[(delivery_db)]
-    NS --- DB6[(notification_db)]
-    AS --- DB7[(admin_db)]
-```
-
 ## Order lifecycle (event choreography)
 
 ```mermaid
